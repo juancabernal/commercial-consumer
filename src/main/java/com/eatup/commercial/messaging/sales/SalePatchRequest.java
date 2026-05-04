@@ -1,0 +1,14 @@
+package com.eatup.commercial.messaging.sales;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+public class SalePatchRequest {
+    private String status;
+}

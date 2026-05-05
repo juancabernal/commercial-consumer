@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 @NoArgsConstructor
-public class PurchaseItemEvent {
+public class PurchaseItemMessage {
 
     private String productId;
     private String productName;

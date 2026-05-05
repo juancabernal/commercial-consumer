@@ -95,4 +95,12 @@ public class CommercialRabbitMQConfig {
                 .to(salesPatchRequestExchange)
                 .with(environment.getProperty("sales.patch.request.routingKey"));
     }
+
+    @Value("${rabbitmq.queue.purchase}")
+    private String purchaseQueue;
+
+    @Bean
+    public Queue purchaseQueue() {
+        return QueueBuilder.durable(purchaseQueue).build();
+    }
 }

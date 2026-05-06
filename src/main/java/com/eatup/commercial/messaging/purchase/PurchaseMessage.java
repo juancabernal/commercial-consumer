@@ -1,6 +1,5 @@
 package com.eatup.commercial.messaging.purchase;
 
-import com.eatup.commercial.domain.purchase.PurchaseAction;
 import com.eatup.commercial.domain.purchase.PurchaseStatus;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

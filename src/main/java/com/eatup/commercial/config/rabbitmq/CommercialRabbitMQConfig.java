@@ -14,6 +14,9 @@ import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.MapperFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 @Configuration
 public class CommercialRabbitMQConfig {
@@ -27,6 +30,9 @@ public class CommercialRabbitMQConfig {
     @Value("${rabbitmq.routing-key.table}")
     private String tableRoutingKey;
 
+    @Value("${rabbitmq.queue.purchase}")
+    private String purchaseQueue;
+
     @Bean
     public RabbitAdmin rabbitAdmin(ConnectionFactory connectionFactory) {
         RabbitAdmin admin = new RabbitAdmin(connectionFactory);
@@ -36,7 +42,12 @@ public class CommercialRabbitMQConfig {
 
     @Bean
     public MessageConverter jsonMessageConverter() {
-        return new JacksonJsonMessageConverter();
+        JsonMapper jsonMapper = JsonMapper.builder()
+                .findAndAddModules(JacksonJsonMessageConverter.class.getClassLoader())
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .disable(MapperFeature.DEFAULT_VIEW_INCLUSION)
+                .build();
+        return new JacksonJsonMessageConverter(jsonMapper);
     }
 
     @Bean
@@ -95,9 +106,6 @@ public class CommercialRabbitMQConfig {
                 .to(salesPatchRequestExchange)
                 .with(environment.getProperty("sales.patch.request.routingKey"));
     }
-
-    @Value("${rabbitmq.queue.purchase}")
-    private String purchaseQueue;
 
     @Bean
     public Queue purchaseQueue() {

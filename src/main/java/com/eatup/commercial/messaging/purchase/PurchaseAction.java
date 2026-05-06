@@ -1,4 +1,4 @@
-package com.eatup.commercial.domain.purchase;
+package com.eatup.commercial.messaging.purchase;
 
 public enum PurchaseAction {
 

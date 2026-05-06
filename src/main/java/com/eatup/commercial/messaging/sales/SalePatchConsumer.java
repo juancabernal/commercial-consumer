@@ -1,4 +1,4 @@
-package com.eatup.commercial.messaging.sales;
+/*package com.eatup.commercial.messaging.sales;
 
 import com.eatup.commercial.service.sale.SaleService;
 import com.eatup.commercial.util.json.MapperJsonObjeto;
@@ -39,4 +39,4 @@ public class SalePatchConsumer {
             LOGGER.error("Failed to process sale patch message. Raw message: {}. Error: {}", message, e.getMessage(), e);
         }
     }
-}
+}*/

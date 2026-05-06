@@ -1,4 +1,4 @@
-package com.eatup.commercial.util.json;
+/*package com.eatup.commercial.util.json;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Optional;
@@ -21,4 +21,4 @@ public class MapperJsonObjetoJackson implements MapperJsonObjeto {
             return Optional.empty();
         }
     }
-}
+}*/

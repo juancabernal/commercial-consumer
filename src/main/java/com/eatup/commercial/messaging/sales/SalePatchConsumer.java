@@ -2,9 +2,11 @@ package com.eatup.commercial.messaging.sales;
 
 import com.eatup.commercial.service.sale.SaleService;
 import com.eatup.commercial.util.json.MapperJsonObjeto;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
@@ -22,7 +24,8 @@ public class SalePatchConsumer {
     }
 
     @RabbitListener(queues = "${sales.patch.request.queue}")
-    public void handleSalePatch(String message) {
+    public void handleSalePatch(Message rabbitMessage) {
+        String message = new String(rabbitMessage.getBody(), StandardCharsets.UTF_8);
         LOGGER.info("Received sale patch message: {}", message);
 
         try {

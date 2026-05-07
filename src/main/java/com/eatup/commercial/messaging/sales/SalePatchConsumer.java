@@ -22,6 +22,7 @@ public class SalePatchConsumer {
         this.saleService = saleService;
         this.mapperJsonObjeto = mapperJsonObjeto;
     }
+    
 
     @RabbitListener(
             queues = "${sales.patch.request.queue}",

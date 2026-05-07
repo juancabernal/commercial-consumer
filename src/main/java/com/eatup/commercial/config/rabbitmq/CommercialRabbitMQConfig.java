@@ -68,6 +68,14 @@ public class CommercialRabbitMQConfig {
     }
 
     @Bean
+    public SimpleRabbitListenerContainerFactory rawRabbitListenerContainerFactory(ConnectionFactory connectionFactory) {
+        SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
+        factory.setConnectionFactory(connectionFactory);
+        factory.setDefaultRequeueRejected(false);
+        return factory;
+    }
+
+    @Bean
     public DirectExchange commercialExchange() {
         return new DirectExchange(exchangeName);
     }

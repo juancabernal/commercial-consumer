@@ -23,7 +23,10 @@ public class SalePatchConsumer {
         this.mapperJsonObjeto = mapperJsonObjeto;
     }
 
-    @RabbitListener(queues = "${sales.patch.request.queue}")
+    @RabbitListener(
+            queues = "${sales.patch.request.queue}",
+            containerFactory = "rawRabbitListenerContainerFactory"
+    )
     public void handleSalePatch(Message rabbitMessage) {
         String message = new String(rabbitMessage.getBody(), StandardCharsets.UTF_8);
         LOGGER.info("Received sale patch message: {}", message);

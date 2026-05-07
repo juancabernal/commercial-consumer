@@ -1,4 +1,4 @@
-/*package com.eatup.commercial.messaging.sales;
+package com.eatup.commercial.messaging.sales;
 
 import com.eatup.commercial.service.sale.SaleService;
 import com.eatup.commercial.util.json.MapperJsonObjeto;
@@ -26,7 +26,9 @@ public class SalePatchConsumer {
         LOGGER.info("Received sale patch message: {}", message);
 
         try {
-            Optional<SalePatchRequestedMessage> dtoOpt = mapperJsonObjeto.ejecutar(message, SalePatchRequestedMessage.class);
+            Optional<SalePatchRequestedMessage> dtoOpt =
+                    mapperJsonObjeto.ejecutar(message, SalePatchRequestedMessage.class);
+
             if (dtoOpt.isEmpty()) {
                 LOGGER.error("Could not deserialize sale patch message. Raw message: {}", message);
                 return;
@@ -36,7 +38,8 @@ public class SalePatchConsumer {
             saleService.applyPatch(dto);
             LOGGER.info("Sale patch message processed successfully. saleId={}", dto.getSaleId());
         } catch (Exception e) {
-            LOGGER.error("Failed to process sale patch message. Raw message: {}. Error: {}", message, e.getMessage(), e);
+            LOGGER.error("Failed to process sale patch message. Raw message: {}. Error: {}",
+                    message, e.getMessage(), e);
         }
     }
-}*/
+}

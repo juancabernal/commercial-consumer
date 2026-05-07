@@ -1,8 +1,8 @@
-/*package com.eatup.commercial.util.json;
+package com.eatup.commercial.util.json;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class MapperJsonObjetoJackson implements MapperJsonObjeto {
@@ -21,4 +21,4 @@ public class MapperJsonObjetoJackson implements MapperJsonObjeto {
             return Optional.empty();
         }
     }
-}*/
+}

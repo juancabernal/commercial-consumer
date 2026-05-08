@@ -3,9 +3,14 @@ package com.eatup.commercial.service.purchase.impl;
 import com.eatup.commercial.domain.purchase.PurchaseDomain;
 import com.eatup.commercial.domain.purchase.PurchaseItemDomain;
 import com.eatup.commercial.domain.purchase.PurchaseStatus;
+import com.eatup.commercial.messaging.inventory.InventoryMessagePublisher;
+import com.eatup.commercial.messaging.inventory.StockUpdateMessage;
 import com.eatup.commercial.messaging.purchase.PurchaseMessage;
 import com.eatup.commercial.repository.purchase.PurchaseRepository;
 import com.eatup.commercial.service.purchase.PurchaseProcessorService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,14 +20,28 @@ import java.util.List;
 public class PurchaseProcessorServiceImpl implements PurchaseProcessorService {
 
     private final PurchaseRepository purchaseRepository;
+    private final InventoryMessagePublisher inventoryMessagePublisher;
 
-    public PurchaseProcessorServiceImpl(PurchaseRepository purchaseRepository) {
+    public PurchaseProcessorServiceImpl(PurchaseRepository purchaseRepository,
+                                        InventoryMessagePublisher inventoryMessagePublisher) {
         this.purchaseRepository = purchaseRepository;
+        this.inventoryMessagePublisher = inventoryMessagePublisher;
     }
 
     @Override
     @Transactional
     public void processPurchaseCreated(PurchaseMessage message) {
+
+        if (purchaseRepository.existsByOrderNumber(message.getOrderNumber())) {
+
+            LOGGER.warn(
+                    "Purchase already processed with orderNumber: {}",
+                    message.getOrderNumber()
+            );
+
+            return;
+        }
+
         PurchaseDomain domain = new PurchaseDomain();
         domain.setOrderNumber(message.getOrderNumber());
         domain.setProviderId(message.getProviderId());
@@ -35,7 +54,6 @@ public class PurchaseProcessorServiceImpl implements PurchaseProcessorService {
                 .map(item -> {
                     PurchaseItemDomain itemDomain = new PurchaseItemDomain();
                     itemDomain.setProductId(item.getProductId());
-                    itemDomain.setProductName(item.getProductName());
                     itemDomain.setQuantity(item.getQuantity());
                     itemDomain.setUnitPrice(item.getUnitPrice());
                     itemDomain.initialize();
@@ -44,7 +62,16 @@ public class PurchaseProcessorServiceImpl implements PurchaseProcessorService {
                 .toList();
 
         domain.replaceItems(items);
-        purchaseRepository.save(domain);
+        try {
+            purchaseRepository.save(domain);
+        }
+        catch (DataIntegrityViolationException ex) {
+
+            LOGGER.warn(
+                    "Duplicate purchase detected for orderNumber: {}",
+                    message.getOrderNumber()
+            );
+        }
     }
 
     @Override
@@ -57,7 +84,6 @@ public class PurchaseProcessorServiceImpl implements PurchaseProcessorService {
                 .map(item -> {
                     PurchaseItemDomain itemDomain = new PurchaseItemDomain();
                     itemDomain.setProductId(item.getProductId());
-                    itemDomain.setProductName(item.getProductName());
                     itemDomain.setQuantity(item.getQuantity());
                     itemDomain.setUnitPrice(item.getUnitPrice());
                     itemDomain.initialize();
@@ -74,9 +100,36 @@ public class PurchaseProcessorServiceImpl implements PurchaseProcessorService {
     @Transactional
     public void processPurchaseStatusUpdated(PurchaseMessage message) {
         PurchaseDomain existing = findByIdOrThrow(message);
-        existing.changeStatus(message.getStatus());
+        boolean changed = existing.changeStatus(message.getStatus());
+        if (!changed) {
+            LOGGER.warn(
+                    "Invalid purchase status transition from {} to {} for purchase {}",
+                    existing.getStatus(),
+                    message.getStatus(),
+                    existing.getId()
+            );
+            return;
+        }
         existing.markAsModified();
         purchaseRepository.save(existing);
+        LOGGER.info(
+                "Purchase status updated successfully to {} for purchase {}",
+                message.getStatus(),
+                existing.getId()
+        );
+
+        if (message.getStatus() == PurchaseStatus.RECEIVED) {
+            existing.getItems().forEach(item -> {
+                StockUpdateMessage stockMessage = new StockUpdateMessage(
+                        existing.getLocationId(),
+                        item.getProductId(),
+                        item.getQuantity()
+                );
+                inventoryMessagePublisher.publishStockUpdate(stockMessage);
+            });
+            LOGGER.info("Stock update published for {} items on purchase {}",
+                    existing.getItems().size(), existing.getId());
+        }
     }
 
     @Override
@@ -93,4 +146,7 @@ public class PurchaseProcessorServiceImpl implements PurchaseProcessorService {
                 .orElseThrow(() -> new RuntimeException(
                         "Purchase not found with id: " + message.getPurchaseId()));
     }
+
+    private static final Logger LOGGER =
+            LoggerFactory.getLogger(PurchaseProcessorServiceImpl.class);
 }

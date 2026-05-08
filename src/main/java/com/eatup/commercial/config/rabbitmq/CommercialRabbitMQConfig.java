@@ -50,6 +50,12 @@ public class CommercialRabbitMQConfig {
     @Value("${rabbitmq.routing-key.purchase.dlq}")
     private String purchaseDeadLetterRoutingKey;
 
+    @Value("${rabbitmq.queue.seller}")
+    private String sellerQueueName;
+
+    @Value("${rabbitmq.routing-key.seller}")
+    private String sellerRoutingKey;
+
     @Bean
     public RabbitAdmin rabbitAdmin(ConnectionFactory connectionFactory) {
         RabbitAdmin admin = new RabbitAdmin(connectionFactory);
@@ -186,5 +192,18 @@ public class CommercialRabbitMQConfig {
                 .bind(purchaseDeadLetterQueue)
                 .to(deadLetterExchange)
                 .with(purchaseDeadLetterRoutingKey);
+    }
+
+    @Bean
+    public Queue sellerQueue() {
+        return QueueBuilder.durable(sellerQueueName).build();
+    }
+
+    @Bean
+    public Binding sellerBinding(Queue sellerQueue, DirectExchange commercialExchange) {
+        return BindingBuilder
+                .bind(sellerQueue)
+                .to(commercialExchange)
+                .with(sellerRoutingKey);
     }
 }

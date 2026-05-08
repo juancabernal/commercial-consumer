@@ -11,6 +11,8 @@ import java.util.UUID;
 
 public interface PurchaseRepository extends JpaRepository<PurchaseDomain, UUID> {
 
+    boolean existsByOrderNumber(String orderNumber);
+
     Page<PurchaseDomain> findByLocationIdAndDeletedFalse(UUID locationId, Pageable pageable);
 
     Page<PurchaseDomain> findByLocationIdAndStatusAndDeletedFalse(

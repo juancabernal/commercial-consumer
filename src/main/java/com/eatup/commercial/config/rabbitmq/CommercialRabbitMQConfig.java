@@ -1,10 +1,6 @@
 package com.eatup.commercial.config.rabbitmq;
 
-import org.springframework.amqp.core.Binding;
-import org.springframework.amqp.core.BindingBuilder;
-import org.springframework.amqp.core.DirectExchange;
-import org.springframework.amqp.core.Queue;
-import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
@@ -14,9 +10,6 @@ import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import tools.jackson.databind.DeserializationFeature;
-import tools.jackson.databind.MapperFeature;
-import tools.jackson.databind.json.JsonMapper;
 
 @Configuration
 public class CommercialRabbitMQConfig {
@@ -33,6 +26,18 @@ public class CommercialRabbitMQConfig {
     @Value("${rabbitmq.queue.purchase}")
     private String purchaseQueue;
 
+    @Value("${rabbitmq.routing-key.purchase}")
+    private String purchaseRoutingKey;
+
+    @Value("${rabbitmq.exchange.dlx}")
+    private String deadLetterExchangeName;
+
+    @Value("${rabbitmq.queue.purchase.dlq}")
+    private String purchaseDeadLetterQueue;
+
+    @Value("${rabbitmq.routing-key.purchase.dlq}")
+    private String purchaseDeadLetterRoutingKey;
+
     @Bean
     public RabbitAdmin rabbitAdmin(ConnectionFactory connectionFactory) {
         RabbitAdmin admin = new RabbitAdmin(connectionFactory);
@@ -42,12 +47,7 @@ public class CommercialRabbitMQConfig {
 
     @Bean
     public MessageConverter jsonMessageConverter() {
-        JsonMapper jsonMapper = JsonMapper.builder()
-                .findAndAddModules(JacksonJsonMessageConverter.class.getClassLoader())
-                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                .disable(MapperFeature.DEFAULT_VIEW_INCLUSION)
-                .build();
-        return new JacksonJsonMessageConverter(jsonMapper);
+        return new JacksonJsonMessageConverter();
     }
 
     @Bean
@@ -117,6 +117,45 @@ public class CommercialRabbitMQConfig {
 
     @Bean
     public Queue purchaseQueue() {
-        return QueueBuilder.durable(purchaseQueue).build();
+
+        return QueueBuilder
+                .durable(purchaseQueue)
+                .deadLetterExchange(deadLetterExchangeName)
+                .deadLetterRoutingKey(purchaseDeadLetterRoutingKey)
+                .build();
+    }
+
+    @Bean
+    public Binding purchaseBinding(
+            Queue purchaseQueue,
+            DirectExchange commercialExchange) {
+
+        return BindingBuilder
+                .bind(purchaseQueue)
+                .to(commercialExchange)
+                .with(purchaseRoutingKey);
+    }
+
+    @Bean
+    public DirectExchange deadLetterExchange() {
+        return new DirectExchange(deadLetterExchangeName);
+    }
+
+    @Bean
+    public Queue purchaseDeadLetterQueue() {
+        return QueueBuilder
+                .durable(purchaseDeadLetterQueue)
+                .build();
+    }
+
+    @Bean
+    public Binding purchaseDeadLetterBinding(
+            Queue purchaseDeadLetterQueue,
+            DirectExchange deadLetterExchange) {
+
+        return BindingBuilder
+                .bind(purchaseDeadLetterQueue)
+                .to(deadLetterExchange)
+                .with(purchaseDeadLetterRoutingKey);
     }
 }

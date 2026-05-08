@@ -15,6 +15,6 @@ import java.util.UUID;
 public class StockUpdateMessage {
 
     private UUID locationId;
-    private String productId;
+    private UUID productId;
     private BigDecimal quantity;
 }

@@ -3,9 +3,11 @@ package com.eatup.commercial.service.sale.impl;
 import com.eatup.commercial.domain.sale.*;
 import com.eatup.commercial.exception.InvalidSaleStatusTransitionException;
 import com.eatup.commercial.exception.SaleCreateProcessingException;
+import com.eatup.commercial.exception.SaleDeleteProcessingException;
 import com.eatup.commercial.exception.SalePatchProcessingException;
 import com.eatup.commercial.exception.SaleUpdateProcessingException;
 import com.eatup.commercial.messaging.sales.SaleCreateResponseMessage;
+import com.eatup.commercial.messaging.sales.SaleDeleteResponseMessage;
 import com.eatup.commercial.messaging.sales.SalePatchRequestedMessage;
 import com.eatup.commercial.messaging.sales.SaleRecipeResponseMessage;
 import com.eatup.commercial.messaging.sales.SaleUpdateResponseMessage;
@@ -239,6 +241,56 @@ public class SaleServiceImpl implements SaleService {
         }
     }
 
+
+    @Override
+    @Transactional
+    public void applyDeleteResponse(SaleDeleteResponseMessage message) {
+        try {
+            validateDeleteMessage(message);
+
+            if (Boolean.FALSE.equals(message.getApproved())) {
+                LOGGER.warn(
+                        "Sale delete rejected by inventory. saleId={}, reason={}",
+                        message.getSaleId(),
+                        resolveDeleteMessage(message)
+                );
+                return;
+            }
+
+            Optional<SaleDomain> saleOpt = saleRepository.findById(message.getSaleId());
+            if (saleOpt.isEmpty()) {
+                LOGGER.warn(
+                        "Sale delete response received but sale does not exist. saleId={}. Message will be ignored as idempotent delete.",
+                        message.getSaleId()
+                );
+                return;
+            }
+
+            SaleDomain sale = saleOpt.get();
+            if (sale.getStatus() == SaleStatus.COMPLETED) {
+                LOGGER.warn("Cannot delete sale because it is COMPLETED. saleId={}", sale.getId());
+                return;
+            }
+
+            traceRepository.deleteBySaleId(sale.getId());
+            saleRepository.delete(sale);
+
+            LOGGER.info(
+                    "Sale deleted successfully after inventory approval. saleId={}, inventoryMessage={}",
+                    sale.getId(),
+                    resolveDeleteMessage(message)
+            );
+        } catch (Exception e) {
+            LOGGER.error(
+                    "Failed to apply sale delete response. saleId={}. Error: {}",
+                    message != null ? message.getSaleId() : null,
+                    e.getMessage(),
+                    e
+            );
+            throw e;
+        }
+    }
+
     private void validateUpdateMessage(SaleUpdateResponseMessage message) {
         if (message == null || message.getSaleId() == null || message.getSale() == null) {
             throw new SaleUpdateProcessingException(
@@ -289,6 +341,23 @@ public class SaleServiceImpl implements SaleService {
                         "Una receta del mensaje de creación de venta está incompleta. Debe incluir recipeId, quantity, unitPrice y approved.");
             }
         }
+    }
+
+
+    private void validateDeleteMessage(SaleDeleteResponseMessage message) {
+        if (message == null || message.getSaleId() == null || message.getApproved() == null) {
+            throw new SaleDeleteProcessingException(
+                    "El mensaje de eliminación de venta está incompleto. Debe incluir saleId y approved.");
+        }
+    }
+
+    private String resolveDeleteMessage(SaleDeleteResponseMessage message) {
+        if (message.getMessage() != null && !message.getMessage().isBlank()) {
+            return message.getMessage();
+        }
+        return Boolean.TRUE.equals(message.getApproved())
+                ? "Delete aprobado por inventory."
+                : "Delete rechazado por inventory.";
     }
 
     private void validateTransition(SaleStatus currentStatus, SaleStatus nextStatus) {

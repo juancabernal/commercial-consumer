@@ -20,49 +20,34 @@ public class TableMessageConsumer {
 
     private final TableService tableService;
 
-    @RabbitListener(queues = "${rabbitmq.queue.table}")
-    public void consume(TableCommandEvent event) {
+    @RabbitListener(queues = "${rabbitmq.queue.table-crud}")
+    public void consumeTableCrud(TableCommandEvent event) {
         switch (event.getEventType()) {
-            case "TABLE_CREATED" ->
-                    tableService.createTable(toTableDto(event.getPayload()));
+            case "TABLE_CREATED"     -> tableService.createTable(toTableDto(event.getPayload()));
+            case "TABLE_UPDATED"     -> tableService.updateTable(event.getTableId(), toTableDto(event.getPayload()));
+            case "TABLE_DEACTIVATED" -> tableService.deactivateTable(event.getTableId());
+            default -> log.warn("Evento de table-crud no reconocido: {}", event.getEventType());
+        }
+    }
 
-            case "TABLE_UPDATED" ->
-                    tableService.updateTable(event.getTableId(), toTableDto(event.getPayload()));
+    @RabbitListener(queues = "${rabbitmq.queue.table-session}")
+    public void consumeTableSession(TableCommandEvent event) {
+        switch (event.getEventType()) {
+            case "TABLE_SESSION_OPENED"  -> tableService.openSession(event.getTableId(), toSessionDto(event.getPayload()));
+            case "TABLE_SESSION_UPDATED" -> tableService.updateGuestCount(event.getTableId(), event.getSessionId(), toInteger(value(event.getPayload(), "guestCount")));
+            case "TABLE_SESSION_CLOSED"  -> tableService.closeSession(event.getTableId(), event.getSessionId());
+            default -> log.warn("Evento de table-session no reconocido: {}", event.getEventType());
+        }
+    }
 
-            case "TABLE_DEACTIVATED" ->
-                    tableService.deactivateTable(event.getTableId());
-
-            case "TABLE_SESSION_OPENED" ->
-                    tableService.openSession(event.getTableId(), toSessionDto(event.getPayload()));
-
-            case "TABLE_SESSION_UPDATED" ->
-                    tableService.updateGuestCount(
-                            event.getTableId(),
-                            event.getSessionId(),
-                            toInteger(value(event.getPayload(), "guestCount"))
-                    );
-
-            case "TABLE_SESSION_CLOSED" ->
-                    tableService.closeSession(event.getTableId(), event.getSessionId());
-
-            case "TABLE_RESERVATION_CREATED" ->
-                    tableService.createReservation(event.getTableId(), toReservationDto(event.getPayload()));
-
-            case "TABLE_RESERVATION_UPDATED" ->
-                    tableService.updateReservation(
-                            event.getTableId(),
-                            event.getReservationId(),
-                            toReservationDto(event.getPayload())
-                    );
-
-            case "TABLE_RESERVATION_CANCELLED" ->
-                    tableService.cancelReservation(event.getTableId(), event.getReservationId());
-
-            case "TABLE_RESERVATION_SEATED" ->
-                    tableService.seatReservation(event.getReservationId(), toSessionDto(event.getPayload()));
-
-            default ->
-                    log.warn("Evento de table no procesado por commercial-service: {}", event.getEventType());
+    @RabbitListener(queues = "${rabbitmq.queue.table-reservation}")
+    public void consumeTableReservation(TableCommandEvent event) {
+        switch (event.getEventType()) {
+            case "TABLE_RESERVATION_CREATED"   -> tableService.createReservation(event.getTableId(), toReservationDto(event.getPayload()));
+            case "TABLE_RESERVATION_UPDATED"   -> tableService.updateReservation(event.getTableId(), event.getReservationId(), toReservationDto(event.getPayload()));
+            case "TABLE_RESERVATION_CANCELLED" -> tableService.cancelReservation(event.getTableId(), event.getReservationId());
+            case "TABLE_RESERVATION_SEATED"    -> tableService.seatReservation(event.getReservationId(), toSessionDto(event.getPayload()));
+            default -> log.warn("Evento de table-reservation no reconocido: {}", event.getEventType());
         }
     }
 

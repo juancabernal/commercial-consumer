@@ -1,17 +1,20 @@
 package com.eatup.commercial.service.sale.impl;
 
-import com.eatup.commercial.domain.sale.SaleDomain;
-import com.eatup.commercial.domain.sale.SaleStatus;
+import com.eatup.commercial.domain.sale.*;
 import com.eatup.commercial.exception.InvalidSaleStatusTransitionException;
+import com.eatup.commercial.exception.SaleCreateProcessingException;
 import com.eatup.commercial.exception.SalePatchProcessingException;
+import com.eatup.commercial.messaging.sales.SaleCreateResponseMessage;
 import com.eatup.commercial.messaging.sales.SalePatchRequestedMessage;
+import com.eatup.commercial.messaging.sales.SaleRecipeResponseMessage;
+import com.eatup.commercial.repository.sale.RecipePreparationTraceRepository;
 import com.eatup.commercial.repository.sale.SaleRepository;
 import com.eatup.commercial.service.sale.SaleService;
+import jakarta.transaction.Transactional;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.EnumMap;
-import java.util.EnumSet;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -30,9 +33,11 @@ public class SaleServiceImpl implements SaleService {
     }
 
     private final SaleRepository saleRepository;
+    private final RecipePreparationTraceRepository traceRepository;
 
-    public SaleServiceImpl(SaleRepository saleRepository) {
+    public SaleServiceImpl(SaleRepository saleRepository, RecipePreparationTraceRepository traceRepository) {
         this.saleRepository = saleRepository;
+        this.traceRepository = traceRepository;
     }
 
     @Override
@@ -65,6 +70,111 @@ public class SaleServiceImpl implements SaleService {
         sale.setModifiedDate(LocalDateTime.now());
         saleRepository.save(sale);
         LOGGER.info("Sale status updated successfully. saleId={}, newStatus={}", sale.getId(), nextStatus);
+    }
+
+    @Override
+    @Transactional
+    public void applyCreateResponse(SaleCreateResponseMessage message) {
+        try {
+            validateCreateMessage(message);
+            boolean allApproved = message.getRecipes().stream()
+                    .allMatch(recipe -> Boolean.TRUE.equals(recipe.getApproved()));
+            SaleStatus saleStatus = allApproved ? SaleStatus.CREATED : SaleStatus.CANCELLED;
+
+            LocalDateTime now = LocalDateTime.now();
+            SaleDomain sale = new SaleDomain();
+            sale.setId(message.getIdMessage());
+            sale.setLocationId(message.getLocationId());
+            sale.setSellerId(message.getSellerId().trim());
+            sale.setTableId(message.getTableId().trim());
+            sale.setStatus(saleStatus);
+            sale.setCreatedDate(now);
+            sale.setModifiedDate(now);
+
+            BigDecimal totalAmount = BigDecimal.ZERO;
+            for (SaleRecipeResponseMessage recipe : message.getRecipes()) {
+                BigDecimal subtotal = recipe.getSubtotal() != null ? recipe.getSubtotal() : recipe.getUnitPrice().multiply(recipe.getQuantity());
+                totalAmount = totalAmount.add(subtotal);
+
+                SaleDetailDomain detail = new SaleDetailDomain();
+                detail.setRecipeId(recipe.getRecipeId());
+                detail.setLineDisplayName(recipe.getLineDisplayName());
+                detail.setRecipeLineComment(recipe.getRecipeLineComment());
+                detail.setQuantity(recipe.getQuantity());
+                detail.setUnitPrice(recipe.getUnitPrice());
+                detail.setSubtotal(subtotal);
+                detail.setCreatedDate(now);
+                detail.setModifiedDate(now);
+                sale.addDetail(detail);
+            }
+            sale.setTotalAmount(totalAmount);
+
+            SaleDomain savedSale = saleRepository.save(sale);
+
+            List<RecipePreparationTraceDomain> traces = new ArrayList<>();
+            for (SaleDetailDomain detail : savedSale.getDetails()) {
+                SaleRecipeResponseMessage recipe = message.getRecipes().stream()
+                        .filter(r -> r.getRecipeId().equals(detail.getRecipeId()))
+                        .findFirst()
+                        .orElseThrow(() -> new SaleCreateProcessingException("No se encontró receta para detalle guardado."));
+
+                RecipePreparationTraceDomain trace = new RecipePreparationTraceDomain();
+                trace.setSaleId(savedSale.getId());
+                trace.setSaleDetailId(detail.getId());
+                trace.setRecipeId(detail.getRecipeId());
+                trace.setStatus(Boolean.TRUE.equals(recipe.getApproved())
+                        ? RecipePreparationTraceStatus.ACCEPTED
+                        : RecipePreparationTraceStatus.REJECTED);
+                trace.setObservation(resolveObservation(recipe));
+                trace.setCreatedDate(now);
+                trace.setModifiedDate(now);
+                traces.add(trace);
+            }
+            traceRepository.saveAll(traces);
+
+            if (allApproved) {
+                LOGGER.info("Sale create response accepted. saleId={}, recipes={}",
+                        savedSale.getId(), message.getRecipes().size());
+            } else {
+                List<String> rejectedRecipes = message.getRecipes().stream()
+                        .filter(r -> Boolean.FALSE.equals(r.getApproved()))
+                        .map(r -> "{recipeId=" + r.getRecipeId() + ", message='" + resolveObservation(r) + "'}")
+                        .collect(Collectors.toList());
+                LOGGER.warn("Sale create response contains rejected recipes. saleId={}, sale stored as CANCELLED. Rejected recipes={}",
+                        savedSale.getId(), rejectedRecipes);
+            }
+        } catch (Exception e) {
+            LOGGER.error("Failed to apply sale create response. idMessage={}. Error: {}",
+                    message != null ? message.getIdMessage() : null, e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    private String resolveObservation(SaleRecipeResponseMessage recipe) {
+        if (recipe.getMessage() != null && !recipe.getMessage().isBlank()) {
+            return recipe.getMessage();
+        }
+        return Boolean.TRUE.equals(recipe.getApproved()) ? "Receta aprobada" : "Receta rechazada por inventory";
+    }
+
+    private void validateCreateMessage(SaleCreateResponseMessage message) {
+        if (message == null || message.getIdMessage() == null || message.getLocationId() == null
+                || message.getSellerId() == null || message.getSellerId().isBlank()
+                || message.getTableId() == null || message.getTableId().isBlank()
+                || message.getRecipes() == null || message.getRecipes().isEmpty()) {
+            throw new SaleCreateProcessingException(
+                    "El mensaje de creación de venta está incompleto. Debe incluir idMessage, locationId, sellerId, tableId y recipes.");
+        }
+
+        for (SaleRecipeResponseMessage recipe : message.getRecipes()) {
+            if (recipe == null || recipe.getRecipeId() == null || recipe.getQuantity() == null
+                    || recipe.getUnitPrice() == null || recipe.getApproved() == null
+                    || recipe.getQuantity().compareTo(BigDecimal.ZERO) <= 0
+                    || recipe.getUnitPrice().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new SaleCreateProcessingException(
+                        "Una receta del mensaje de creación de venta está incompleta. Debe incluir recipeId, quantity, unitPrice y approved.");
+            }
+        }
     }
 
     private void validateTransition(SaleStatus currentStatus, SaleStatus nextStatus) {

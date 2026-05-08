@@ -144,6 +144,13 @@ public class CommercialRabbitMQConfig {
                 .with(environment.getProperty("sales.patch.request.routingKey"));
     }
 
+
+    @Bean
+    public Queue salesCreateResponseQueue(
+            org.springframework.core.env.Environment environment) {
+        return new Queue(environment.getProperty("sales.create.response.queue"), true);
+    }
+
     @Bean
     public Queue purchaseQueue() {
 

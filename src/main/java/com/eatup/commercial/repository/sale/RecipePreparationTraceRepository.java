@@ -5,4 +5,5 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface RecipePreparationTraceRepository extends JpaRepository<RecipePreparationTraceDomain, UUID> {
+    void deleteBySaleId(UUID saleId);
 }

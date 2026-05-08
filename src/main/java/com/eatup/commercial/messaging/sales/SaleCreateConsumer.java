@@ -11,41 +11,41 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
 @Component
-public class SalePatchConsumer {
+public class SaleCreateConsumer {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(SalePatchConsumer.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SaleCreateConsumer.class);
 
     private final SaleService saleService;
     private final MapperJsonObjeto mapperJsonObjeto;
 
-    public SalePatchConsumer(SaleService saleService, MapperJsonObjeto mapperJsonObjeto) {
+    public SaleCreateConsumer(SaleService saleService, MapperJsonObjeto mapperJsonObjeto) {
         this.saleService = saleService;
         this.mapperJsonObjeto = mapperJsonObjeto;
     }
 
-
     @RabbitListener(
-            queues = "${sales.patch.request.queue}",
+            queues = "${sales.create.response.queue}",
             containerFactory = "rawRabbitListenerContainerFactory"
     )
-    public void handleSalePatch(Message rabbitMessage) {
+    public void handleSaleCreate(Message rabbitMessage) {
         String message = new String(rabbitMessage.getBody(), StandardCharsets.UTF_8);
-        LOGGER.info("Received sale patch message: {}", message);
+        LOGGER.info("Received sale create response message: {}", message);
 
         try {
-            Optional<SalePatchRequestedMessage> dtoOpt =
-                    mapperJsonObjeto.ejecutar(message, SalePatchRequestedMessage.class);
+            Optional<SaleCreateResponseMessage> dtoOpt =
+                    mapperJsonObjeto.ejecutar(message, SaleCreateResponseMessage.class);
 
             if (dtoOpt.isEmpty()) {
-                LOGGER.error("Could not deserialize sale patch message. Raw message: {}", message);
+                LOGGER.error("Could not deserialize sale create response message. Raw message: {}", message);
                 return;
             }
 
-            SalePatchRequestedMessage dto = dtoOpt.get();
-            saleService.applyPatch(dto);
-            LOGGER.info("Sale patch message processed successfully. saleId={}", dto.getSaleId());
+            SaleCreateResponseMessage dto = dtoOpt.get();
+            saleService.applyCreateResponse(dto);
+            LOGGER.info("Sale create response processed successfully. idMessage={}", dto.getIdMessage());
+
         } catch (Exception e) {
-            LOGGER.error("Failed to process sale patch message. Raw message: {}. Error: {}",
+            LOGGER.error("Failed to process sale create response message. Raw message: {}. Error: {}",
                     message, e.getMessage(), e);
         }
     }

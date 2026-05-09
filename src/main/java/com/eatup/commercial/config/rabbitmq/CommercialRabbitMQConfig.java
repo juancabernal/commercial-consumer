@@ -56,6 +56,18 @@ public class CommercialRabbitMQConfig {
     @Value("${rabbitmq.routing-key.seller}")
     private String sellerRoutingKey;
 
+    @Value("${rabbitmq.queue.discount}")
+    private String discountQueueName;
+
+    @Value("${rabbitmq.routing-key.discount}")
+    private String discountRoutingKey;
+
+    @Value("${rabbitmq.queue.customer-discount}")
+    private String customerDiscountQueueName;
+
+    @Value("${rabbitmq.routing-key.customer-discount}")
+    private String customerDiscountRoutingKey;
+
     @Bean
     public RabbitAdmin rabbitAdmin(ConnectionFactory connectionFactory) {
         RabbitAdmin admin = new RabbitAdmin(connectionFactory);
@@ -150,7 +162,6 @@ public class CommercialRabbitMQConfig {
                 .with(environment.getProperty("sales.patch.request.routingKey"));
     }
 
-
     @Bean
     public Queue salesCreateResponseQueue(
             org.springframework.core.env.Environment environment) {
@@ -159,7 +170,6 @@ public class CommercialRabbitMQConfig {
 
     @Bean
     public Queue purchaseQueue() {
-
         return QueueBuilder
                 .durable(purchaseQueue)
                 .deadLetterExchange(deadLetterExchangeName)
@@ -171,7 +181,6 @@ public class CommercialRabbitMQConfig {
     public Binding purchaseBinding(
             Queue purchaseQueue,
             DirectExchange commercialExchange) {
-
         return BindingBuilder
                 .bind(purchaseQueue)
                 .to(commercialExchange)
@@ -194,7 +203,6 @@ public class CommercialRabbitMQConfig {
     public Binding purchaseDeadLetterBinding(
             Queue purchaseDeadLetterQueue,
             DirectExchange deadLetterExchange) {
-
         return BindingBuilder
                 .bind(purchaseDeadLetterQueue)
                 .to(deadLetterExchange)
@@ -212,5 +220,25 @@ public class CommercialRabbitMQConfig {
                 .bind(sellerQueue)
                 .to(commercialExchange)
                 .with(sellerRoutingKey);
+    }
+
+    @Bean
+    public Queue discountQueue() {
+        return QueueBuilder.durable(discountQueueName).build();
+    }
+
+    @Bean
+    public Binding discountBinding(Queue discountQueue, DirectExchange commercialExchange) {
+        return BindingBuilder.bind(discountQueue).to(commercialExchange).with(discountRoutingKey);
+    }
+
+    @Bean
+    public Queue customerDiscountQueue() {
+        return QueueBuilder.durable(customerDiscountQueueName).build();
+    }
+
+    @Bean
+    public Binding customerDiscountBinding(Queue customerDiscountQueue, DirectExchange commercialExchange) {
+        return BindingBuilder.bind(customerDiscountQueue).to(commercialExchange).with(customerDiscountRoutingKey);
     }
 }

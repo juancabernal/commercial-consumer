@@ -50,6 +50,12 @@ public class CommercialRabbitMQConfig {
     @Value("${rabbitmq.routing-key.purchase.dlq}")
     private String purchaseDeadLetterRoutingKey;
 
+    @Value("${rabbitmq.queue.seller}")
+    private String sellerQueueName;
+
+    @Value("${rabbitmq.routing-key.seller}")
+    private String sellerRoutingKey;
+
     @Value("${rabbitmq.queue.discount}")
     private String discountQueueName;
 
@@ -157,8 +163,13 @@ public class CommercialRabbitMQConfig {
     }
 
     @Bean
-    public Queue purchaseQueue() {
+    public Queue salesCreateResponseQueue(
+            org.springframework.core.env.Environment environment) {
+        return new Queue(environment.getProperty("sales.create.response.queue"), true);
+    }
 
+    @Bean
+    public Queue purchaseQueue() {
         return QueueBuilder
                 .durable(purchaseQueue)
                 .deadLetterExchange(deadLetterExchangeName)
@@ -170,7 +181,6 @@ public class CommercialRabbitMQConfig {
     public Binding purchaseBinding(
             Queue purchaseQueue,
             DirectExchange commercialExchange) {
-
         return BindingBuilder
                 .bind(purchaseQueue)
                 .to(commercialExchange)
@@ -193,12 +203,25 @@ public class CommercialRabbitMQConfig {
     public Binding purchaseDeadLetterBinding(
             Queue purchaseDeadLetterQueue,
             DirectExchange deadLetterExchange) {
-
         return BindingBuilder
                 .bind(purchaseDeadLetterQueue)
                 .to(deadLetterExchange)
                 .with(purchaseDeadLetterRoutingKey);
     }
+
+    @Bean
+    public Queue sellerQueue() {
+        return QueueBuilder.durable(sellerQueueName).build();
+    }
+
+    @Bean
+    public Binding sellerBinding(Queue sellerQueue, DirectExchange commercialExchange) {
+        return BindingBuilder
+                .bind(sellerQueue)
+                .to(commercialExchange)
+                .with(sellerRoutingKey);
+    }
+
     @Bean
     public Queue discountQueue() {
         return QueueBuilder.durable(discountQueueName).build();

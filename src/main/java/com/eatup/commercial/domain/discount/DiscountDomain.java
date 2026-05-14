@@ -18,19 +18,30 @@ public class DiscountDomain {
     @Column(nullable = false)
     private Integer percentage;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 100)
     private String description;
 
     @Column(nullable = false)
     private Boolean status;
 
-    @Column(nullable = false)
+    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column
     private LocalDateTime modifiedAt;
 
     public DiscountDomain() {}
+
+    @PrePersist
+    public void prePersist() {
+        this.createdAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        this.modifiedAt = LocalDateTime.now();
+    }
+
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
     public UUID getCategoryId() { return categoryId; }

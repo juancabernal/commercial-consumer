@@ -31,13 +31,24 @@ public class CustomerDiscountDomain {
     @Column
     private LocalDate endDate;
 
-    @Column(nullable = false)
+    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column
     private LocalDateTime modifiedAt;
 
     public CustomerDiscountDomain() {}
+
+    @PrePersist
+    public void prePersist() {
+        this.createdAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        this.modifiedAt = LocalDateTime.now();
+    }
+
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
     public UUID getCustomerId() { return customerId; }

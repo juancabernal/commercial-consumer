@@ -22,12 +22,30 @@ public class DiscountMessageConsumer {
 
     @RabbitListener(queues = "${rabbitmq.queue.discount}")
     public void consume(DiscountCommandEvent event) {
-        switch (event.getEventType()) {
-            case "DISCOUNT_CREATED"        -> discountService.createDiscount(toDto(event.getPayload()));
-            case "DISCOUNT_UPDATED"        -> discountService.updateDiscount(toUUID(event.getDiscountId()), toDto(event.getPayload()));
-            case "DISCOUNT_STATUS_UPDATED" -> discountService.updateDiscountStatus(toUUID(event.getDiscountId()), toBoolean(value(event.getPayload(), "status")));
-            case "DISCOUNT_DELETED"        -> discountService.deleteDiscount(toUUID(event.getDiscountId()));
-            default -> log.warn("Evento de descuento no reconocido: {}", event.getEventType());
+        try {
+            if (event == null || event.getEventType() == null) {
+                log.error("Evento de descuento nulo o sin tipo");
+                return;
+            }
+
+            if ((event.getEventType().equals("DISCOUNT_CREATED") ||
+                    event.getEventType().equals("DISCOUNT_UPDATED"))
+                    && event.getPayload() == null) {
+                log.error("Payload nulo para evento: {}", event.getEventType());
+                return;
+            }
+            switch (event.getEventType()) {
+                case "DISCOUNT_CREATED"        -> discountService.createDiscount(toDto(event.getPayload()));
+                case "DISCOUNT_UPDATED"        -> discountService.updateDiscount(toUUID(event.getDiscountId()), toDto(event.getPayload()));
+                case "DISCOUNT_STATUS_UPDATED" -> discountService.updateDiscountStatus(toUUID(event.getDiscountId()), toBoolean(value(event.getPayload(), "status")));
+                case "DISCOUNT_DELETED"        -> discountService.deleteDiscount(toUUID(event.getDiscountId()));
+                default -> log.warn("Evento de descuento no reconocido: {}", event.getEventType());
+            }
+        } catch (Exception e) {
+            log.error("Error procesando evento de descuento. tipo={}, id={}, error={}",
+                    event != null ? event.getEventType() : "null",
+                    event != null ? event.getDiscountId() : "null",
+                    e.getMessage(), e);
         }
     }
 
@@ -41,8 +59,27 @@ public class DiscountMessageConsumer {
     }
 
     private Object value(Map<String, Object> payload, String key) { return payload != null ? payload.get(key) : null; }
-    private UUID toUUID(Object v) { return v != null ? UUID.fromString(v.toString()) : null; }
-    private Integer toInteger(Object v) { return v instanceof Number n ? n.intValue() : v != null ? Integer.valueOf(v.toString()) : null; }
+    private UUID toUUID(Object v) {
+        if (v == null) return null;
+        try {
+            return UUID.fromString(v.toString());
+        } catch (IllegalArgumentException e) {
+            log.error("UUID invalido recibido en evento de descuento: {}", v);
+            return null;
+        }
+    }
+
+    private Integer toInteger(Object v) {
+        if (v == null) return null;
+        if (v instanceof Number n) return n.intValue();
+        try {
+            return Integer.parseInt(v.toString());
+        } catch (NumberFormatException e) {
+            log.error("Integer invalido recibido en evento de descuento: {}", v);
+            return null;
+        }
+    }
+
     private Boolean toBoolean(Object v) { return v instanceof Boolean b ? b : v != null ? Boolean.valueOf(v.toString()) : null; }
     private String toString(Object v) { return v != null ? v.toString() : null; }
 }

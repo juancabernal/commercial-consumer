@@ -23,11 +23,28 @@ public class CustomerDiscountMessageConsumer {
 
     @RabbitListener(queues = "${rabbitmq.queue.customer-discount}")
     public void consume(CustomerDiscountCommandEvent event) {
-        switch (event.getEventType()) {
-            case "CUSTOMER_DISCOUNT_CREATED" -> customerDiscountService.createCustomerDiscount(toDto(event.getPayload()));
-            case "CUSTOMER_DISCOUNT_UPDATED" -> customerDiscountService.updateCustomerDiscount(toUUID(event.getCustomerDiscountId()), toDto(event.getPayload()));
-            case "CUSTOMER_DISCOUNT_DELETED" -> customerDiscountService.deleteCustomerDiscount(toUUID(event.getCustomerDiscountId()));
-            default -> log.warn("Evento de customer discount no reconocido: {}", event.getEventType());
+        try {
+            if (event == null || event.getEventType() == null) {
+                log.error("Evento de customer discount nulo o sin tipo");
+                return;
+            }
+            if ((event.getEventType().equals("CUSTOMER_DISCOUNT_CREATED") ||
+                    event.getEventType().equals("CUSTOMER_DISCOUNT_UPDATED"))
+                    && event.getPayload() == null) {
+                log.error("Payload nulo para evento: {}", event.getEventType());
+                return;
+            }
+            switch (event.getEventType()) {
+                case "CUSTOMER_DISCOUNT_CREATED" -> customerDiscountService.createCustomerDiscount(toDto(event.getPayload()));
+                case "CUSTOMER_DISCOUNT_UPDATED" -> customerDiscountService.updateCustomerDiscount(toUUID(event.getCustomerDiscountId()), toDto(event.getPayload()));
+                case "CUSTOMER_DISCOUNT_DELETED" -> customerDiscountService.deleteCustomerDiscount(toUUID(event.getCustomerDiscountId()));
+                default -> log.warn("Evento de customer discount no reconocido: {}", event.getEventType());
+            }
+        } catch (Exception e) {
+            log.error("Error procesando evento de customer discount. tipo={}, id={}, error={}",
+                    event != null ? event.getEventType() : "null",
+                    event != null ? event.getCustomerDiscountId() : "null",
+                    e.getMessage(), e);
         }
     }
 
@@ -43,10 +60,23 @@ public class CustomerDiscountMessageConsumer {
     }
 
     private Object value(Map<String, Object> payload, String key) { return payload != null ? payload.get(key) : null; }
-    private UUID toUUID(Object v) { return v != null ? UUID.fromString(v.toString()) : null; }
+    private UUID toUUID(Object v) {
+        if (v == null) return null;
+        try {
+            return UUID.fromString(v.toString());
+        } catch (IllegalArgumentException e) {
+            log.error("UUID invalido recibido en evento de customer discount: {}", v);
+            return null;
+        }
+    }
     private LocalDate toLocalDate(Object v) {
         if (v == null) return null;
         if (v instanceof LocalDate d) return d;
-        return LocalDate.parse(v.toString());
+        try {
+            return LocalDate.parse(v.toString());
+        } catch (Exception e) {
+            log.error("Fecha invalida recibida: {}", v);
+            return null;
+        }
     }
 }

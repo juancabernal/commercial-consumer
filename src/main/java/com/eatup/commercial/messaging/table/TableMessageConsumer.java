@@ -110,21 +110,28 @@ public class TableMessageConsumer {
     }
 
     private LocalDate toLocalDate(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof LocalDate localDate) {
-            return localDate;
+        if (value == null) return null;
+        if (value instanceof LocalDate localDate) return localDate;
+        // Si viene como array [2026, 5, 9]
+        if (value instanceof java.util.List<?> list) {
+            return LocalDate.of(
+                    ((Number) list.get(0)).intValue(),
+                    ((Number) list.get(1)).intValue(),
+                    ((Number) list.get(2)).intValue()
+            );
         }
         return LocalDate.parse(value.toString());
     }
 
     private LocalTime toLocalTime(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof LocalTime localTime) {
-            return localTime;
+        if (value == null) return null;
+        if (value instanceof LocalTime localTime) return localTime;
+        // Si viene como array [11, 0]
+        if (value instanceof java.util.List<?> list) {
+            return LocalTime.of(
+                    ((Number) list.get(0)).intValue(),
+                    ((Number) list.get(1)).intValue()
+            );
         }
         return LocalTime.parse(value.toString());
     }

@@ -68,6 +68,24 @@ public class CommercialRabbitMQConfig {
     @Value("${rabbitmq.routing-key.customer-discount}")
     private String customerDiscountRoutingKey;
 
+    @Value("${rabbitmq.queue.provider-create}")
+    private String providerCreateQueueName;
+
+    @Value("${rabbitmq.routing-key.provider-create}")
+    private String providerCreateRoutingKey;
+
+    @Value("${rabbitmq.queue.provider-update}")
+    private String providerUpdateQueueName;
+
+    @Value("${rabbitmq.routing-key.provider-update}")
+    private String providerUpdateRoutingKey;
+
+    @Value("${rabbitmq.queue.provider-status}")
+    private String providerStatusQueueName;
+
+    @Value("${rabbitmq.routing-key.provider-status}")
+    private String providerStatusRoutingKey;
+
     @Bean
     public RabbitAdmin rabbitAdmin(ConnectionFactory connectionFactory) {
         RabbitAdmin admin = new RabbitAdmin(connectionFactory);
@@ -241,4 +259,35 @@ public class CommercialRabbitMQConfig {
     public Binding customerDiscountBinding(Queue customerDiscountQueue, DirectExchange commercialExchange) {
         return BindingBuilder.bind(customerDiscountQueue).to(commercialExchange).with(customerDiscountRoutingKey);
     }
+
+    @Bean
+    public Queue providerCreateQueue() {
+        return QueueBuilder.durable(providerCreateQueueName).build();
+    }
+
+    @Bean
+    public Binding providerCreateBinding(Queue providerCreateQueue, DirectExchange commercialExchange) {
+        return BindingBuilder.bind(providerCreateQueue).to(commercialExchange).with(providerCreateRoutingKey);
+    }
+
+    @Bean
+    public Queue providerUpdateQueue() {
+        return QueueBuilder.durable(providerUpdateQueueName).build();
+    }
+
+    @Bean
+    public Binding providerUpdateBinding(Queue providerUpdateQueue, DirectExchange commercialExchange) {
+        return BindingBuilder.bind(providerUpdateQueue).to(commercialExchange).with(providerUpdateRoutingKey);
+    }
+
+    @Bean
+    public Queue providerStatusQueue() {
+        return QueueBuilder.durable(providerStatusQueueName).build();
+    }
+
+    @Bean
+    public Binding providerStatusBinding(Queue providerStatusQueue, DirectExchange commercialExchange) {
+        return BindingBuilder.bind(providerStatusQueue).to(commercialExchange).with(providerStatusRoutingKey);
+    }
+
 }

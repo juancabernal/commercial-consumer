@@ -35,6 +35,25 @@ public class CommercialRabbitMQConfig {
     @Value("${rabbitmq.routing-key.table-reservation}")
     private String tableReservationRoutingKey;
 
+
+    @Value("${rabbitmq.exchange.table-session-open}")
+    private String tableSessionOpenExchangeName;
+
+    @Value("${rabbitmq.queue.table-session-open}")
+    private String tableSessionOpenQueueName;
+
+    @Value("${rabbitmq.routing-key.table-session-open}")
+    private String tableSessionOpenRoutingKey;
+
+    @Value("${rabbitmq.exchange.table-session-close}")
+    private String tableSessionCloseExchangeName;
+
+    @Value("${rabbitmq.queue.table-session-close}")
+    private String tableSessionCloseQueueName;
+
+    @Value("${rabbitmq.routing-key.table-session-close}")
+    private String tableSessionCloseRoutingKey;
+
     @Value("${rabbitmq.queue.purchase}")
     private String purchaseQueue;
 
@@ -166,6 +185,37 @@ public class CommercialRabbitMQConfig {
     public Queue salesCreateResponseQueue(
             org.springframework.core.env.Environment environment) {
         return new Queue(environment.getProperty("sales.create.response.queue"), true);
+    }
+
+
+    @Bean
+    public DirectExchange tableSessionOpenExchange() {
+        return new DirectExchange(tableSessionOpenExchangeName);
+    }
+
+    @Bean
+    public Queue tableSessionOpenQueue() {
+        return QueueBuilder.durable(tableSessionOpenQueueName).build();
+    }
+
+    @Bean
+    public Binding tableSessionOpenBinding(Queue tableSessionOpenQueue, DirectExchange tableSessionOpenExchange) {
+        return BindingBuilder.bind(tableSessionOpenQueue).to(tableSessionOpenExchange).with(tableSessionOpenRoutingKey);
+    }
+
+    @Bean
+    public DirectExchange tableSessionCloseExchange() {
+        return new DirectExchange(tableSessionCloseExchangeName);
+    }
+
+    @Bean
+    public Queue tableSessionCloseQueue() {
+        return QueueBuilder.durable(tableSessionCloseQueueName).build();
+    }
+
+    @Bean
+    public Binding tableSessionCloseBinding(Queue tableSessionCloseQueue, DirectExchange tableSessionCloseExchange) {
+        return BindingBuilder.bind(tableSessionCloseQueue).to(tableSessionCloseExchange).with(tableSessionCloseRoutingKey);
     }
 
     @Bean

@@ -11,6 +11,8 @@ import com.eatup.commercial.messaging.sales.SaleDeleteResponseMessage;
 import com.eatup.commercial.messaging.sales.SalePatchRequestedMessage;
 import com.eatup.commercial.messaging.sales.SaleRecipeResponseMessage;
 import com.eatup.commercial.messaging.sales.SaleUpdateResponseMessage;
+import com.eatup.commercial.messaging.table.TableSessionEventPublisher;
+import com.eatup.commercial.messaging.table.TableSessionOpenRequestedMessage;
 import com.eatup.commercial.repository.sale.RecipePreparationTraceRepository;
 import com.eatup.commercial.repository.sale.SaleRepository;
 import com.eatup.commercial.service.sale.SaleService;
@@ -38,10 +40,13 @@ public class SaleServiceImpl implements SaleService {
 
     private final SaleRepository saleRepository;
     private final RecipePreparationTraceRepository traceRepository;
+    private final TableSessionEventPublisher tableSessionEventPublisher;
 
-    public SaleServiceImpl(SaleRepository saleRepository, RecipePreparationTraceRepository traceRepository) {
+    public SaleServiceImpl(SaleRepository saleRepository, RecipePreparationTraceRepository traceRepository,
+                           TableSessionEventPublisher tableSessionEventPublisher) {
         this.saleRepository = saleRepository;
         this.traceRepository = traceRepository;
+        this.tableSessionEventPublisher = tableSessionEventPublisher;
     }
 
     @Override
@@ -137,6 +142,7 @@ public class SaleServiceImpl implements SaleService {
             traceRepository.saveAll(traces);
 
             if (allApproved) {
+                publishTableSessionOpenRequested(savedSale);
                 LOGGER.info("Sale create response accepted. saleId={}, recipes={}",
                         savedSale.getId(), message.getRecipes().size());
             } else {
@@ -291,6 +297,32 @@ public class SaleServiceImpl implements SaleService {
         }
     }
 
+
+
+    private void publishTableSessionOpenRequested(SaleDomain savedSale) {
+        if (savedSale == null || savedSale.getId() == null) {
+            LOGGER.error("Skipping table session open event publication because sale is null or has no id.");
+            return;
+        }
+        if (savedSale.getTableId() == null || savedSale.getTableId().isBlank()) {
+            LOGGER.error("Skipping table session open event publication because sale {} has no tableId.", savedSale.getId());
+            return;
+        }
+
+        TableSessionOpenRequestedMessage tableMessage = new TableSessionOpenRequestedMessage(
+                savedSale.getTableId().trim(),
+                savedSale.getId(),
+                savedSale.getSellerId(),
+                savedSale.getLocationId(),
+                "Se creó una venta en esta mesa. Debe abrirse la sesión de la mesa.");
+
+        try {
+            tableSessionEventPublisher.publishOpenSessionRequested(tableMessage);
+        } catch (Exception exception) {
+            LOGGER.error("Sale {} was created, but table session open request could not be published for table {}.",
+                    savedSale.getId(), savedSale.getTableId(), exception);
+        }
+    }
     private void validateUpdateMessage(SaleUpdateResponseMessage message) {
         if (message == null || message.getSaleId() == null || message.getSale() == null) {
             throw new SaleUpdateProcessingException(

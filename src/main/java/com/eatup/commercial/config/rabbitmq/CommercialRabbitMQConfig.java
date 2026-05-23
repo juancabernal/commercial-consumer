@@ -35,6 +35,16 @@ public class CommercialRabbitMQConfig {
     @Value("${rabbitmq.routing-key.table-reservation}")
     private String tableReservationRoutingKey;
 
+
+    @Value("${rabbitmq.exchange.table-session-open}")
+    private String tableSessionOpenExchangeName;
+
+    @Value("${rabbitmq.queue.table-session-open}")
+    private String tableSessionOpenQueueName;
+
+    @Value("${rabbitmq.routing-key.table-session-open}")
+    private String tableSessionOpenRoutingKey;
+
     @Value("${rabbitmq.queue.purchase}")
     private String purchaseQueue;
 
@@ -166,6 +176,22 @@ public class CommercialRabbitMQConfig {
     public Queue salesCreateResponseQueue(
             org.springframework.core.env.Environment environment) {
         return new Queue(environment.getProperty("sales.create.response.queue"), true);
+    }
+
+
+    @Bean
+    public DirectExchange tableSessionOpenExchange() {
+        return new DirectExchange(tableSessionOpenExchangeName);
+    }
+
+    @Bean
+    public Queue tableSessionOpenQueue() {
+        return QueueBuilder.durable(tableSessionOpenQueueName).build();
+    }
+
+    @Bean
+    public Binding tableSessionOpenBinding(Queue tableSessionOpenQueue, DirectExchange tableSessionOpenExchange) {
+        return BindingBuilder.bind(tableSessionOpenQueue).to(tableSessionOpenExchange).with(tableSessionOpenRoutingKey);
     }
 
     @Bean

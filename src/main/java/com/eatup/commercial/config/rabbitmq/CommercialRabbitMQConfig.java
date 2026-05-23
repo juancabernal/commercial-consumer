@@ -45,6 +45,15 @@ public class CommercialRabbitMQConfig {
     @Value("${rabbitmq.routing-key.table-session-open}")
     private String tableSessionOpenRoutingKey;
 
+    @Value("${rabbitmq.exchange.table-session-close}")
+    private String tableSessionCloseExchangeName;
+
+    @Value("${rabbitmq.queue.table-session-close}")
+    private String tableSessionCloseQueueName;
+
+    @Value("${rabbitmq.routing-key.table-session-close}")
+    private String tableSessionCloseRoutingKey;
+
     @Value("${rabbitmq.queue.purchase}")
     private String purchaseQueue;
 
@@ -192,6 +201,21 @@ public class CommercialRabbitMQConfig {
     @Bean
     public Binding tableSessionOpenBinding(Queue tableSessionOpenQueue, DirectExchange tableSessionOpenExchange) {
         return BindingBuilder.bind(tableSessionOpenQueue).to(tableSessionOpenExchange).with(tableSessionOpenRoutingKey);
+    }
+
+    @Bean
+    public DirectExchange tableSessionCloseExchange() {
+        return new DirectExchange(tableSessionCloseExchangeName);
+    }
+
+    @Bean
+    public Queue tableSessionCloseQueue() {
+        return QueueBuilder.durable(tableSessionCloseQueueName).build();
+    }
+
+    @Bean
+    public Binding tableSessionCloseBinding(Queue tableSessionCloseQueue, DirectExchange tableSessionCloseExchange) {
+        return BindingBuilder.bind(tableSessionCloseQueue).to(tableSessionCloseExchange).with(tableSessionCloseRoutingKey);
     }
 
     @Bean

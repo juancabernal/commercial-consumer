@@ -8,7 +8,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
-
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Map;
@@ -37,6 +36,102 @@ public class TableMessageConsumer {
             case "TABLE_SESSION_UPDATED" -> tableService.updateGuestCount(event.getTableId(), event.getSessionId(), toInteger(value(event.getPayload(), "guestCount")));
             case "TABLE_SESSION_CLOSED"  -> tableService.closeSession(event.getTableId(), event.getSessionId());
             default -> log.warn("Evento de table-session no reconocido: {}", event.getEventType());
+        }
+    }
+    @RabbitListener(queues = "${rabbitmq.queue.table-session-open}")
+    public void consumeOpenSessionRequest(TableSessionOpenRequestedMessage message) {
+
+        log.info("Open session request received. tableId={}", message.getTableId());
+
+        try {
+
+            TableSessionDTO dto = new TableSessionDTO();
+
+            dto.setGuestCount(1);
+            dto.setWaiterId(message.getSellerId());
+            dto.setObservations(message.getMessage());
+
+            try {
+
+                tableService.getActiveSession(message.getTableId());
+
+                log.warn(
+                        "Table {} already has an active session. Ignoring open request.",
+                        message.getTableId()
+                );
+
+                return;
+
+            } catch (Exception ignored) {
+                // No active session exists, continue opening
+            }
+
+            tableService.openSession(message.getTableId(), dto);
+
+            log.info(
+                    "Session opened successfully. tableId={}",
+                    message.getTableId()
+            );
+
+        } catch (Exception ex) {
+
+            log.error(
+                    "Error opening session for table {}",
+                    message.getTableId(),
+                    ex
+            );
+        }
+    }
+
+    @RabbitListener(queues = "${rabbitmq.queue.table-session-close}")
+    public void consumeCloseSessionRequest(
+            TableSessionCloseRequestedMessage message
+    ) {
+
+        log.info(
+                "Close session request received. tableId={}",
+                message.getTableId()
+        );
+
+        try {
+
+            TableSessionDTO activeSession;
+
+            try {
+
+                activeSession =
+                        tableService.getActiveSession(
+                                message.getTableId()
+                        );
+
+            } catch (Exception ex) {
+
+                log.warn(
+                        "No active session found for table {}. Ignoring close request.",
+                        message.getTableId()
+                );
+
+                return;
+            }
+
+            tableService.closeSession(
+                    message.getTableId(),
+                    activeSession.getId()
+            );
+
+            log.info(
+                    "Session closed successfully. tableId={}, sessionId={}",
+                    message.getTableId(),
+                    activeSession.getId()
+            );
+
+        } catch (Exception ex) {
+
+            log.error(
+                    "Error closing session for table {}",
+                    message.getTableId(),
+                    ex
+            );
         }
     }
 

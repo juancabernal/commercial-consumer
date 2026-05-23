@@ -22,6 +22,12 @@ public class TableSessionEventPublisherBroker implements TableSessionEventPublis
     @Value("${rabbitmq.routing-key.table-session-open}")
     private String tableSessionOpenRoutingKey;
 
+    @Value("${rabbitmq.exchange.table-session-close}")
+    private String tableSessionCloseExchange;
+
+    @Value("${rabbitmq.routing-key.table-session-close}")
+    private String tableSessionCloseRoutingKey;
+
     @Override
     public void publishOpenSessionRequested(TableSessionOpenRequestedMessage message) {
         MessagePostProcessor postProcessor = rabbitMessage -> {
@@ -34,4 +40,18 @@ public class TableSessionEventPublisherBroker implements TableSessionEventPublis
         rabbitTemplate.convertAndSend(tableSessionOpenExchange, tableSessionOpenRoutingKey, message, postProcessor);
         log.info("Table session open request published. tableId={}, saleId={}", message.getTableId(), message.getSaleId());
     }
+
+    @Override
+    public void publishCloseSessionRequested(TableSessionCloseRequestedMessage message) {
+        MessagePostProcessor postProcessor = rabbitMessage -> {
+            rabbitMessage.getMessageProperties().setContentType(MessageProperties.CONTENT_TYPE_JSON);
+            rabbitMessage.getMessageProperties().setHeader("idMensaje", UUID.randomUUID().toString());
+            return rabbitMessage;
+        };
+
+        log.info("Publishing table session close request. tableId={}, saleId={}", message.getTableId(), message.getSaleId());
+        rabbitTemplate.convertAndSend(tableSessionCloseExchange, tableSessionCloseRoutingKey, message, postProcessor);
+        log.info("Table session close request published. tableId={}, saleId={}", message.getTableId(), message.getSaleId());
+    }
+
 }

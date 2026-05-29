@@ -1,12 +1,14 @@
 package com.eatup.commercial.messaging.provider;
 
+import com.eatup.commercial.dto.provider.ProviderDTO;
 import java.util.Map;
 
 public class ProviderCommandEvent {
 
     private String eventType;
     private String providerId;
-    private Map<String, Object> payload;
+    private ProviderDTO payload;
+    private Map<String, Object> statusPayload;
 
     public ProviderCommandEvent() {}
 
@@ -16,6 +18,9 @@ public class ProviderCommandEvent {
     public String getProviderId() { return providerId; }
     public void setProviderId(String providerId) { this.providerId = providerId; }
 
-    public Map<String, Object> getPayload() { return payload; }
-    public void setPayload(Map<String, Object> payload) { this.payload = payload; }
+    public ProviderDTO getPayload() { return payload; }
+    public void setPayload(ProviderDTO payload) { this.payload = payload; }
+
+    public Map<String, Object> getStatusPayload() { return statusPayload; }
+    public void setStatusPayload(Map<String, Object> statusPayload) { this.statusPayload = statusPayload; }
 }

@@ -11,6 +11,9 @@ import com.eatup.commercial.messaging.sales.SaleDeleteResponseMessage;
 import com.eatup.commercial.messaging.sales.SalePatchRequestedMessage;
 import com.eatup.commercial.messaging.sales.SaleRecipeResponseMessage;
 import com.eatup.commercial.messaging.sales.SaleUpdateResponseMessage;
+import com.eatup.commercial.messaging.table.TableSessionCloseRequestedMessage;
+import com.eatup.commercial.messaging.table.TableSessionEventPublisher;
+import com.eatup.commercial.messaging.table.TableSessionOpenRequestedMessage;
 import com.eatup.commercial.repository.sale.RecipePreparationTraceRepository;
 import com.eatup.commercial.repository.sale.SaleRepository;
 import com.eatup.commercial.service.sale.SaleService;
@@ -38,10 +41,13 @@ public class SaleServiceImpl implements SaleService {
 
     private final SaleRepository saleRepository;
     private final RecipePreparationTraceRepository traceRepository;
+    private final TableSessionEventPublisher tableSessionEventPublisher;
 
-    public SaleServiceImpl(SaleRepository saleRepository, RecipePreparationTraceRepository traceRepository) {
+    public SaleServiceImpl(SaleRepository saleRepository, RecipePreparationTraceRepository traceRepository,
+                           TableSessionEventPublisher tableSessionEventPublisher) {
         this.saleRepository = saleRepository;
         this.traceRepository = traceRepository;
+        this.tableSessionEventPublisher = tableSessionEventPublisher;
     }
 
     @Override
@@ -68,12 +74,18 @@ public class SaleServiceImpl implements SaleService {
         LOGGER.info("Applying sale status patch. saleId={}, currentStatus={}, requestedStatus={}",
                 sale.getId(), sale.getStatus(), nextStatus);
 
-        validateTransition(sale.getStatus(), nextStatus);
+        SaleStatus previousStatus = sale.getStatus();
+        validateTransition(previousStatus, nextStatus);
 
         sale.setStatus(nextStatus);
         sale.setModifiedDate(LocalDateTime.now());
-        saleRepository.save(sale);
-        LOGGER.info("Sale status updated successfully. saleId={}, newStatus={}", sale.getId(), nextStatus);
+        SaleDomain savedSale = saleRepository.save(sale);
+
+        if (previousStatus != SaleStatus.COMPLETED && savedSale.getStatus() == SaleStatus.COMPLETED) {
+            publishTableSessionCloseRequested(savedSale);
+        }
+
+        LOGGER.info("Sale status updated successfully. saleId={}, newStatus={}", savedSale.getId(), nextStatus);
     }
 
     @Override
@@ -137,6 +149,7 @@ public class SaleServiceImpl implements SaleService {
             traceRepository.saveAll(traces);
 
             if (allApproved) {
+                publishTableSessionOpenRequested(savedSale);
                 LOGGER.info("Sale create response accepted. saleId={}, recipes={}",
                         savedSale.getId(), message.getRecipes().size());
             } else {
@@ -288,6 +301,63 @@ public class SaleServiceImpl implements SaleService {
                     e
             );
             throw e;
+        }
+    }
+
+
+
+    private void publishTableSessionOpenRequested(SaleDomain savedSale) {
+        if (savedSale == null || savedSale.getId() == null) {
+            LOGGER.error("Skipping table session open event publication because sale is null or has no id.");
+            return;
+        }
+        if (savedSale.getTableId() == null || savedSale.getTableId().isBlank()) {
+            LOGGER.error("Skipping table session open event publication because sale {} has no tableId.", savedSale.getId());
+            return;
+        }
+
+        TableSessionOpenRequestedMessage tableMessage = new TableSessionOpenRequestedMessage(
+                savedSale.getTableId().trim(),
+                savedSale.getId(),
+                savedSale.getSellerId(),
+                savedSale.getLocationId(),
+                "Se creó una venta en esta mesa. Debe abrirse la sesión de la mesa.");
+
+        try {
+            tableSessionEventPublisher.publishOpenSessionRequested(tableMessage);
+        } catch (Exception exception) {
+            LOGGER.error("Sale {} was created, but table session open request could not be published for table {}.",
+                    savedSale.getId(), savedSale.getTableId(), exception);
+        }
+    }
+
+
+    private void publishTableSessionCloseRequested(SaleDomain sale) {
+        if (sale == null || sale.getId() == null) {
+            LOGGER.error("Skipping table session close event publication because sale is null or has no id.");
+            return;
+        }
+        if (sale.getStatus() != SaleStatus.COMPLETED) {
+            LOGGER.error("Skipping table session close event publication because sale {} is not COMPLETED.", sale.getId());
+            return;
+        }
+        if (sale.getTableId() == null || sale.getTableId().isBlank()) {
+            LOGGER.error("Skipping table session close event publication because sale {} has no tableId.", sale.getId());
+            return;
+        }
+
+        TableSessionCloseRequestedMessage message = new TableSessionCloseRequestedMessage(
+                sale.getTableId().trim(),
+                sale.getId(),
+                sale.getSellerId(),
+                sale.getLocationId(),
+                "La venta fue completada. La mesa debe quedar disponible.");
+
+        try {
+            tableSessionEventPublisher.publishCloseSessionRequested(message);
+        } catch (Exception exception) {
+            LOGGER.error("La venta {} fue completada, pero no se pudo publicar la solicitud para liberar la mesa {}",
+                    sale.getId(), sale.getTableId(), exception);
         }
     }
 
